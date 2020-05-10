@@ -302,9 +302,9 @@ void geometricCtrl::pubRateCommands(const Eigen::Vector4d &cmd) {
   msg.header.frame_id = "map";
   msg.body_rate.x = cmd(0);
   msg.body_rate.y = cmd(1);
-  msg.body_rate.z = cmd(2);
-  msg.type_mask = 128;  // Ignore orientation messages
-  msg.thrust = cmd(3);
+  msg.body_rate.z = 0.5;
+  msg.type_mask = 128; //Ignore orientation messages
+  msg.thrust = 0.4;
 
   angularVelPub_.publish(msg);
 }
