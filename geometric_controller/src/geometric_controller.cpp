@@ -366,22 +366,47 @@ void geometricCtrl::computeBodyRateCmd(Eigen::Vector4d &bodyrate_cmd, const Eige
   const Eigen::Vector3d pos_error = mavPos_ - target_pos;
   const Eigen::Vector3d vel_error = mavVel_ - target_vel;
 
-  Eigen::Vector3d a_fb =
-      Kpos_.asDiagonal() * pos_error + Kvel_.asDiagonal() * vel_error;  // feedforward term for trajectory error
-  if (a_fb.norm() > max_fb_acc_)
-    a_fb = (max_fb_acc_ / a_fb.norm()) * a_fb;  // Clip acceleration if reference is too large
+  //Position Controller
+  const Eigen::Vector3d a_fb = poscontroller(pos_error, vel_error);
 
-  const Eigen::Vector3d a_rd = R_ref * D_.asDiagonal() * R_ref.transpose() * target_vel;  // Rotor drag
+  //Rotor Drag compensation
+  bool rotor_drag = false;
+  Eigen::Vector3d a_rd;
+  if (rotor_drag) {
+    a_rd = R_ref * D_.asDiagonal() * R_ref.transpose() * target_vel;  // Rotor drag
+  } else {
+    a_rd = Eigen::Vector3d::Zero();
+  }
+
+  //Reference acceleration
   const Eigen::Vector3d a_des = a_fb + a_ref - a_rd - g_;
 
+  //Reference attitude
   q_des = acc2quaternion(a_des, mavYaw_);
 
-  if (ctrl_mode_ == ERROR_GEOMETRIC) {
-    bodyrate_cmd = geometric_attcontroller(q_des, a_des, mavAtt_);  // Calculate BodyRate
+  //Choose which kind of attitude controller you are running
+  bool jerk_enabled = false;
+  if (jerk_enabled) {
+    if (ctrl_mode_ == ERROR_GEOMETRIC) {
+      bodyrate_cmd = geometric_attcontroller(q_des, a_des, mavAtt_);  // Calculate BodyRate
 
+    } else {
+      bodyrate_cmd = attcontroller(q_des, a_des, mavAtt_);  // Calculate BodyRate
+    }
   } else {
-    bodyrate_cmd = attcontroller(q_des, a_des, mavAtt_);  // Calculate BodyRate
+    bodyrate_cmd = jerkcontroller(targetJerk_, a_des, mavAtt_);
   }
+}
+
+void geometricCtrl::poscontroller(const Eigen::Vector4d &ref_att, const Eigen::Vector3d &ref_acc,
+                                             Eigen::Vector4d &curr_att) {
+  Eigen::Vector3d a_fb =
+      Kpos_.asDiagonal() * pos_error + Kvel_.asDiagonal() * vel_error;  // feedforward term for trajectory error
+
+  if (a_fb.norm() > max_fb_acc_)
+    a_fb = (max_fb_acc_ / a_fb.norm()) * a_fb;  // Clip acceleration if reference is too large
+  
+  return a_fb;
 }
 
 Eigen::Vector4d geometricCtrl::acc2quaternion(const Eigen::Vector3d &vector_acc, const double &yaw) {
@@ -421,6 +446,29 @@ Eigen::Vector4d geometricCtrl::attcontroller(const Eigen::Vector4d &ref_att, con
   zb = rotmat.col(2);
   ratecmd(3) =
       std::max(0.0, std::min(1.0, norm_thrust_const_ * ref_acc.dot(zb) + norm_thrust_offset_));  // Calculate thrust
+
+  return ratecmd;
+}
+
+Eigen::Vector4d geometricCtrl::jerkcontroller(Eigen::Vector3d &ref_jerk, Eigen::Vector3d &ref_acc, Eigen::Vector4d &curr_att){
+  //TODO: Unify this and the attcontroller
+  
+  //Feedforward control from Lopez(2016)
+  Eigen::Vector4d ratecmd;
+  Eigen::Vector3d jerk, jerk_fb, acc_fb, jerk_vector, ratecmd_pre;
+  Eigen::Matrix3d R;
+
+  //TODO: calculate jerk_fb from acc_reference
+  // jerk_fb = calc(ref_acc, ref_vel, ref_pos);
+  jerk = ref_jerk + jerk_fb;
+  jerk_vector = jerk / jerk.norm() - ref_acc*ref_acc.dot(jerk) / std::pow(jerk.norm(), 3); //TODO: is ref_acc ?
+
+  R = quat2RotMatrix(curr_att);
+  ratecmd_pre = R.transpose() * jerk_vector;
+
+  ratecmd(0) =  (-1.0)* ratecmd_pre(2);
+  ratecmd(2) = ratecmd_pre(1);
+  ratecmd(3) = 0.0;
 
   return ratecmd;
 }
