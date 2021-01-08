@@ -49,6 +49,7 @@
 #include <geometry_msgs/TwistStamped.h>
 #include <mavconn/mavlink_dialect.h>
 #include <mavros_msgs/PositionTarget.h>
+#include <mavros_msgs/GlobalPositionTarget.h>
 #include <nav_msgs/Path.h>
 #include <ros/ros.h>
 #include <std_msgs/Int32.h>
@@ -110,6 +111,7 @@ class trajectoryPublisher {
   void pubrefState();
   void pubflatrefState();
   void pubrefSetpointRaw();
+  void pubrefSetpointRawGlobal();
   void initializePrimitives(int type);
   void updatePrimitives();
   void loopCallback(const ros::TimerEvent& event);
