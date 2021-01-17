@@ -303,8 +303,8 @@ void geometricCtrl::pubRateCommands(const Eigen::Vector4d &cmd) {
   msg.body_rate.x = cmd(0);
   msg.body_rate.y = cmd(1);
   msg.body_rate.z = cmd(2);
-  msg.orientation.w = 1.0;
-  msg.orientation.x = 0.0;
+  msg.orientation.w = std::cos(0.1);
+  msg.orientation.x = std::sin(0.1);
   msg.orientation.y = 0.0;
   msg.orientation.z = 0.0;
   msg.type_mask = 7;  // Ignore orientation messages
